@@ -132,7 +132,8 @@ int main(int argc, char *argv[])
             command[len - 1] = '\0';
         }
 
-        // TODO: send(g_serverSocket, command, strlen(command), 0);
+        // TODO:
+        send(g_serverSocket, command, strlen(command), 0);
 
         // If QUIT => break
         if (strncmp(command, "QUIT", 4) == 0)
