@@ -267,7 +267,12 @@ void *clientHandler(void *arg)
   {
     memset(buffer, 0, sizeof(buffer));
     // TODO: recv from clientSocket
-    // ...
+    if (recv(clientSocket, buffer, BUFFER_SIZE, 0) < 0)
+    {
+      perror("failed to receive from the client");
+      close(clientSocket);
+      continue;
+    }
 
     // Strip trailing newline (if any)
     size_t len = strlen(buffer);
@@ -409,7 +414,6 @@ int main(int argc, char *argv[])
       continue;
     }
 
-    // TODO: convert this to clientCount in the Player struct
     g_gameState.clientCount++; // If a client gets updated, increment number of clients
 
     getnameinfo((struct socketaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
