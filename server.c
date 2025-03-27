@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
   int port = atoi(argv[1]);
-  int activeClients = 0;
+  g_gameState.clientCount = 0;
 
   // 1. Initialize game state
   initGameState();
@@ -399,7 +399,7 @@ int main(int argc, char *argv[])
     }
 
     // Reject new clients if it exceeds the max capacity at a time
-    if (activeClients >= MAX_CLIENTS)
+    if (g_gameState.clientCount >= MAX_CLIENTS)
     {
       // Server is full, reject the client
       printf("Server full! Rejecting new client.\n");
@@ -410,13 +410,13 @@ int main(int argc, char *argv[])
     }
 
     // TODO: convert this to clientCount in the Player struct
-    activeClients++; // If a client gets updated, increment number of clients
+    g_gameState.clientCount++; // If a client gets updated, increment number of clients
 
     getnameinfo((struct socketaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
     printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, MAX_CLIENTS);
 
     // If we have capacity, find a free index in g_clientSockets
-    g_clientSockets[activeClients] = newSock; // Adding the activeClient to the array
+    g_clientSockets[g_gameState.clientCount] = newSock; // Adding the activeClient to the array
     // create a thread: pthread_t tid;
     // int *arg = malloc(sizeof(int));
     // *arg = freeIndex;
@@ -424,11 +424,11 @@ int main(int argc, char *argv[])
     // pthread_detach(tid);
 
     close(newSock);
-    for (int i = 1; i < activeClients - 1; i++)
+    for (int i = 1; i < g_gameState.clientCount - 1; i++)
     {
       g_clientSockets[i] = g_clientSockets[i + 1]; // Removing the socket, by shifiting further sockets
     }
-    activeClients--;
+    g_gameState.clientCount--;
   }
 
   close(serverSock);
