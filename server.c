@@ -235,8 +235,24 @@ void handleCommand(int playerIndex, const char *cmd)
         g_gameState.players[playerIndex].y = ny;
       }
     }
-    // else if (strstr(cmd, "LEFT")) { ... }
-    // else if (strstr(cmd, "RIGHT")) { ... }
+    else if (strstr(cmd, "LEFT"))
+    {
+      int nx = g_gameState.players[playerIndex].x - 1;
+      int ny = g_gameState.players[playerIndex].y;
+      if (nx < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
+      {
+        g_gameState.players[playerIndex].x = nx;
+      }
+    }
+    else if (strstr(cmd, "RIGHT"))
+    {
+      int nx = g_gameState.players[playerIndex].x + 1;
+      int ny = g_gameState.players[playerIndex].y;
+      if (nx < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
+      {
+        g_gameState.players[playerIndex].x = nx;
+      }
+    }
   }
   // else if (strncmp(cmd, "ATTACK", 6) == 0) { ... }
   // else if (strncmp(cmd, "QUIT", 4) == 0) { ... }
