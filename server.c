@@ -138,8 +138,32 @@ void buildStateString(char *outBuffer)
   strcat(outBuffer, "STATE\n");
 
   // Copy the grid
+  for (int r = 0; r < GRID_ROWS; r++)
+  {
+    for (int c = 0; c < GRID_COLS; c++)
+    {
+      sprintf(outBuffer + strlen(outBuffer), "%c", g_gameState.grid[r][c]);
+    }
+  }
   // ...
+  strcat(outBuffer, "ACTIVE PLAYER INFO (IF EXISTS)\n");
   // Optionally append player info
+  for (int i = 0; i < MAX_CLIENTS; i++)
+  {
+    // Check for active players
+    Player active_player;
+    if (g_gameState.players[i].active == 1)
+    {
+      active_player = g_gameState.players[i];
+      sprintf(outBuffer, strlen(outBuffer), "Player %d\n", i);
+      sprintf(outBuffer, strlen(outBuffer), "Player position: (%d, %d)\n", active_player.x, active_player.y);
+      sprintf(outBuffer, strlen(outBuffer), "Player health pointsL %d\n", active_player.hp);
+    }
+    else
+    {
+      continue;
+    }
+  }
 }
 
 /*---------------------------------------------------------------------------*
@@ -367,6 +391,7 @@ int main(int argc, char *argv[])
       continue;
     }
 
+    // TODO: convert this to clientCount in the Player struct
     activeClients++; // If a client gets updated, increment number of clients
 
     getnameinfo((struct socketaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
