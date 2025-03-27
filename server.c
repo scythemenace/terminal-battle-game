@@ -173,8 +173,25 @@ void broadcastState()
 {
   char buffer[BUFFER_SIZE];
   buildStateString(buffer);
+  size_t len = strlen(buffer);
 
   // TODO: send buffer to each active client via send() or write()
+  for (int i = 0; i < MAX_CLIENTS; i++)
+  {
+    // Checking for valid sockets
+    if (g_clientSockets[i] != -1)
+    {
+      if (send(g_clientSockets[i], buffer, len, 0) < 0)
+      {
+        printf("Failed to send message to a socket %d", g_clientSockets[i]);
+        continue;
+      }
+    }
+    else
+    {
+      continue;
+    }
+  }
 }
 
 /*---------------------------------------------------------------------------*
