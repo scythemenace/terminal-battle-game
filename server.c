@@ -29,7 +29,8 @@
 
 #define MAX_CLIENTS 4
 #define BUFFER_SIZE 1024
-#define LISTENQ 4 // Upto 4 people can wait in the lobby for a next game session
+#define LISTENQ 4    // Upto 4 people can wait in the lobby for a next game session
+#define MAXLINE 1000 // For hostname
 
 /* Grid dimensions */
 #define GRID_ROWS 5
@@ -272,6 +273,7 @@ int main(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
   int port = atoi(argv[1]);
+  int activeClients = 0;
 
   // 1. Initialize game state
   initGameState();
@@ -293,7 +295,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  int serverSock; // Global Socket
+  int serverSock; // Global server socket
 
   for (p = listp; p != NULL; p = p->ai_next)
   {
@@ -343,17 +345,49 @@ int main(int argc, char *argv[])
   // 4. Accept loop
   while (1)
   {
-    // int newSock = accept(...);
-    // if (newSock < 0) { continue; }
+    struct sockaddr_storage clientAddr;
+    socklen_t clientlen = sizeof(clientAddr);
+    char client_hostname[MAXLINE], client_port[MAXLINE];
+
+    int newSock = accept(serverSock, (struct sockaddr *)&clientAddr, &clientlen);
+    if (newSock < 0)
+    {
+      perror("accept failed");
+      continue;
+    }
+
+    // Reject new clients if it exceeds the max capacity at a time
+    if (activeClients >= MAX_CLIENTS)
+    {
+      // Server is full, reject the client
+      printf("Server full! Rejecting new client.\n");
+      const char *msg = "Server full. Please try again later.\n";
+      send(newSock, msg, strlen(msg), 0);
+      close(newSock);
+      continue;
+    }
+
+    activeClients++; // If a client gets updated, increment number of clients
+
+    getnameinfo((struct socketaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
+    printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, MAX_CLIENTS);
 
     // If we have capacity, find a free index in g_clientSockets
+    g_clientSockets[activeClients] = newSock; // Adding the activeClient to the array
     // create a thread: pthread_t tid;
     // int *arg = malloc(sizeof(int));
     // *arg = freeIndex;
     // pthread_create(&tid, NULL, clientHandler, arg);
     // pthread_detach(tid);
+
+    close(newSock);
+    for (int i = 1; i < activeClients - 1; i++)
+    {
+      g_clientSockets[i] = g_clientSockets[i + 1]; // Removing the socket, by shifiting further sockets
+    }
+    activeClients--;
   }
 
-  // close(serverSock);
+  close(serverSock);
   return 0;
 }
