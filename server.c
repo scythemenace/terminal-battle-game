@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
     }
 
     // Eliminates "Address already in use" error from bind
-    Setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR,
+    setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR,
                (const void *)&optval, sizeof(int));
 
     // 3. Bind, listen
@@ -439,8 +439,8 @@ int main(int argc, char *argv[])
       continue;
     }
 
-    getnameinfo((struct socketaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
-    printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, MAX_CLIENTS);
+    getnameinfo((struct sockaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
+    printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, g_gameState.clientCount, MAX_CLIENTS);
 
     // If we have capacity, find a free index in g_clientSockets
     int freeIndex;
