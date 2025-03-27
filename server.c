@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
     fprintf(stderr, "Usage: %s <PORT>\n", argv[0]);
     exit(EXIT_FAILURE);
   }
-  int port = atoi(argv[1]);
+  int port = atoi(argv[1]); // No need in getaddrinfo because expects a char
   g_gameState.clientCount = 0;
 
   // 1. Initialize game state
@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
 
   int rc, optval = 1;
 
-  if ((rc = getaddrinfo(NULL, port, &hints, &listp)) != 0)
+  if ((rc = getaddrinfo(NULL, argv[1], &hints, &listp)) != 0)
   {
     fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(rc));
     return 1;

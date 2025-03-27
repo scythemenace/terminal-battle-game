@@ -73,14 +73,14 @@ int main(int argc, char *argv[])
     }
 
     char *serverIP = argv[1];
-    int port = atoi(argv[2]);
+    int port = atoi(argv[2]); // No need in getaddrinfo because expects a char
 
     struct addrinfo hints, *listp, *p;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_socktype = SOCK_STREAM; // TCP Connection
     hints.ai_flags = AI_NUMERICSERV; // using numeric port tag
     hints.ai_flags |= AI_ADDRCONFIG;
-    getaddrinfo(serverIP, port, &hints, &listp);
+    getaddrinfo(serverIP, argv[2], &hints, &listp);
 
     for (p = listp; p != NULL; p = p->ai_next)
     {
