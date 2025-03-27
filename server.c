@@ -144,6 +144,7 @@ void buildStateString(char *outBuffer)
     {
       sprintf(outBuffer + strlen(outBuffer), "%c", g_gameState.grid[r][c]);
     }
+    strcat(outBuffer, "\n");
   }
   // ...
   strcat(outBuffer, "ACTIVE PLAYER INFO (IF EXISTS)\n");
@@ -155,9 +156,9 @@ void buildStateString(char *outBuffer)
     if (g_gameState.players[i].active == 1)
     {
       active_player = g_gameState.players[i];
-      sprintf(outBuffer, strlen(outBuffer), "Player %d\n", i);
-      sprintf(outBuffer, strlen(outBuffer), "Player position: (%d, %d)\n", active_player.x, active_player.y);
-      sprintf(outBuffer, strlen(outBuffer), "Player health pointsL %d\n", active_player.hp);
+      sprintf(outBuffer + strlen(outBuffer), "Player %d\n", i);
+      sprintf(outBuffer + strlen(outBuffer), "Player position: (%d, %d)\n", active_player.x, active_player.y);
+      sprintf(outBuffer + strlen(outBuffer), "Player health pointsL %d\n", active_player.hp);
     }
     else
     {
