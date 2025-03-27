@@ -63,6 +63,14 @@ GameState g_gameState;
 /* Store each client's socket; index corresponds to a player ID (0..3) */
 int g_clientSockets[MAX_CLIENTS];
 
+void initSockets()
+{
+  for (int i = 0; i < MAX_CLIENTS; i++)
+  {
+    g_clientSockets[i] = -1;
+  }
+}
+
 /* Mutex to protect shared game state (recommended for thread safety) */
 pthread_mutex_t g_stateMutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -211,20 +219,20 @@ void handleCommand(int playerIndex, const char *cmd)
     // Example commands: MOVE UP, MOVE DOWN, MOVE LEFT, MOVE RIGHT
     if (strstr(cmd, "UP"))
     {
-      int nx = g_gameState.players[playerIndex].x - 1;
-      int ny = g_gameState.players[playerIndex].y;
-      if (nx >= 0 && g_gameState.grid[nx][ny] != '#')
+      int nx = g_gameState.players[playerIndex].x;
+      int ny = g_gameState.players[playerIndex].y + 1;
+      if (ny >= 0 && g_gameState.grid[nx][ny] != '#')
       {
-        g_gameState.players[playerIndex].x = nx;
+        g_gameState.players[playerIndex].y = ny;
       }
     }
     else if (strstr(cmd, "DOWN"))
     {
-      int nx = g_gameState.players[playerIndex].x + 1;
-      int ny = g_gameState.players[playerIndex].y;
-      if (nx < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
+      int nx = g_gameState.players[playerIndex].x;
+      int ny = g_gameState.players[playerIndex].y - 1;
+      if (ny < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
       {
-        g_gameState.players[playerIndex].x = nx;
+        g_gameState.players[playerIndex].y = ny;
       }
     }
     // else if (strstr(cmd, "LEFT")) { ... }
@@ -324,6 +332,7 @@ int main(int argc, char *argv[])
 
   // 1. Initialize game state
   initGameState();
+  initSockets();
 
   // Setting up addrInfo
 
@@ -414,25 +423,28 @@ int main(int argc, char *argv[])
       continue;
     }
 
-    g_gameState.clientCount++; // If a client gets updated, increment number of clients
-
     getnameinfo((struct socketaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
     printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, MAX_CLIENTS);
 
     // If we have capacity, find a free index in g_clientSockets
-    g_clientSockets[g_gameState.clientCount] = newSock; // Adding the activeClient to the array
-    // create a thread: pthread_t tid;
-    // int *arg = malloc(sizeof(int));
-    // *arg = freeIndex;
-    // pthread_create(&tid, NULL, clientHandler, arg);
-    // pthread_detach(tid);
-
-    close(newSock);
-    for (int i = 1; i < g_gameState.clientCount - 1; i++)
+    int freeIndex;
+    for (int i = 0; i < MAX_CLIENTS; i++)
     {
-      g_clientSockets[i] = g_clientSockets[i + 1]; // Removing the socket, by shifiting further sockets
+      if (g_clientSockets[i] != -1)
+      {
+        freeIndex = i;
+      }
     }
-    g_gameState.clientCount--;
+
+    g_clientSockets[freeIndex] = newSock; // Adding the activeClient to the array
+    g_gameState.clientCount++;
+
+    // create a thread:
+    pthread_t tid;
+    int *arg = malloc(sizeof(int));
+    *arg = freeIndex;
+    pthread_create(&tid, NULL, clientHandler, arg);
+    pthread_detach(tid);
   }
 
   close(serverSock);
