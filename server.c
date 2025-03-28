@@ -307,7 +307,50 @@ void handleCommand(int playerIndex, const char *cmd)
       }
     }
   }
-  // else if (strncmp(cmd, "ATTACK", 6) == 0) { ... }
+  else if (strncmp(cmd, "ATTACK", 6) == 0)
+  {
+    // Only launch a new fireball if the player doesn't have an active one
+    if (g_gameState.players[playerIndex].fireball.active)
+    {
+      return; // Ignore command if fireball is already active
+    }
+
+    int px = g_gameState.players[playerIndex].x;
+    int py = g_gameState.players[playerIndex].y;
+    int dx = 0, dy = 0;
+
+    // Set direction
+    if (strstr(cmd, "UP"))
+    {
+      dx = -1; // Move up
+    }
+    else if (strstr(cmd, "DOWN"))
+    {
+      dx = 1; // Move down
+    }
+    else if (strstr(cmd, "LEFT"))
+    {
+      dy = -1; // Move left
+    }
+    else if (strstr(cmd, "RIGHT"))
+    {
+      dy = 1; // Move right
+    }
+
+    // Check initial position is valid
+    int tx = px + dx;
+    int ty = py + dy;
+    if (tx >= 0 && tx < GRID_ROWS && ty >= 0 && ty < GRID_COLS && g_gameState.grid[tx][ty] != '#')
+    {
+      g_gameState.players[playerIndex].fireball.x = tx;
+      g_gameState.players[playerIndex].fireball.y = ty;
+      g_gameState.players[playerIndex].fireball.dx = dx;
+      g_gameState.players[playerIndex].fireball.dy = dy;
+      g_gameState.players[playerIndex].fireball.active = 1;
+      g_gameState.players[playerIndex].fireball.justSpawned = 1; // Set flag
+      g_gameState.grid[tx][ty] = '*';                            // Place initial fireball
+    }
+  }
   // else if (strncmp(cmd, "QUIT", 4) == 0) { ... }
 
   // Refresh positions and broadcast
