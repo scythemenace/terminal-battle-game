@@ -126,7 +126,7 @@ void initGameState()
  *---------------------------------------------------------------------------*/
 void refreshPlayerPositions()
 {
-  // Clear all non-obstacle cells and non-fireball cells
+  // Clear all non-obstacle cells
   for (int r = 0; r < GRID_ROWS; r++)
   {
     for (int c = 0; c < GRID_COLS; c++)
@@ -165,7 +165,46 @@ void refreshPlayerPositions()
         continue;
       }
 
-      // Move fireball
+      // Check for player collision by comparing coordinates
+      int hitPlayerIndex = -1;
+      for (int j = 0; j < MAX_CLIENTS; j++)
+      {
+        if (g_gameState.players[j].active && g_gameState.players[j].hp > 0)
+        {
+          if (g_gameState.players[j].x == nx && g_gameState.players[j].y == ny)
+          {
+            hitPlayerIndex = j;
+            break;
+          }
+        }
+      }
+
+      if (hitPlayerIndex != -1) // A player was hit
+      {
+        g_gameState.players[hitPlayerIndex].hp -= 50; // Apply 50 damage
+        printf("Player %c hit by fireball! HP reduced to %d\n", 'A' + hitPlayerIndex, g_gameState.players[hitPlayerIndex].hp);
+        fflush(stdout);
+
+        // Deactivate fireball after hitting a player
+        g_gameState.players[i].fireball.active = 0;
+
+        // Check if player's HP is 0 or less
+        if (g_gameState.players[hitPlayerIndex].hp <= 0)
+        {
+          printf("Player %c has been defeated!\n", 'A' + hitPlayerIndex);
+          fflush(stdout);
+          g_gameState.players[hitPlayerIndex].active = 0; // Mark player as inactive
+          if (g_clientSockets[hitPlayerIndex] != -1)
+          {
+            close(g_clientSockets[hitPlayerIndex]);
+            g_clientSockets[hitPlayerIndex] = -1;
+            g_gameState.clientCount--;
+          }
+        }
+        continue; // Skip placing the fireball since it hit a player
+      }
+
+      // Move fireball if no player was hit
       g_gameState.players[i].fireball.x = nx;
       g_gameState.players[i].fireball.y = ny;
       g_gameState.grid[nx][ny] = '*'; // Place fireball in new position
