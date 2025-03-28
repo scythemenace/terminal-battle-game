@@ -164,9 +164,11 @@ void buildStateString(char *outBuffer)
     if (g_gameState.players[i].active == 1)
     {
       active_player = g_gameState.players[i];
+      printf("Is player active: INT -> %d", g_gameState.players[i].active);
+      active_player = g_gameState.players[i];
       sprintf(outBuffer + strlen(outBuffer), "Player %d\n", i);
       sprintf(outBuffer + strlen(outBuffer), "Player position: (%d, %d)\n", active_player.x, active_player.y);
-      sprintf(outBuffer + strlen(outBuffer), "Player health pointsL %d\n", active_player.hp);
+      sprintf(outBuffer + strlen(outBuffer), "Player health points %d\n", active_player.hp);
     }
     else
     {
@@ -219,38 +221,38 @@ void handleCommand(int playerIndex, const char *cmd)
     // Example commands: MOVE UP, MOVE DOWN, MOVE LEFT, MOVE RIGHT
     if (strstr(cmd, "UP"))
     {
+      int nx = g_gameState.players[playerIndex].x > 0 ? g_gameState.players[playerIndex].x - 1 : g_gameState.players[playerIndex].x;
+      int ny = g_gameState.players[playerIndex].y;
+      if (nx >= 0 && g_gameState.grid[nx][ny] != '#')
+      {
+        g_gameState.players[playerIndex].x = nx;
+      }
+    }
+    else if (strstr(cmd, "DOWN"))
+    {
+      int nx = g_gameState.players[playerIndex].x < GRID_ROWS - 1 ? g_gameState.players[playerIndex].x + 1 : g_gameState.players[playerIndex].x;
+      int ny = g_gameState.players[playerIndex].y;
+      if (nx >= 0 && g_gameState.grid[nx][ny] != '#')
+      {
+        g_gameState.players[playerIndex].x = nx;
+      }
+    }
+    else if (strstr(cmd, "LEFT"))
+    {
       int nx = g_gameState.players[playerIndex].x;
-      int ny = g_gameState.players[playerIndex].y + 1;
+      int ny = g_gameState.players[playerIndex].y < GRID_COLS ? g_gameState.players[playerIndex].y - 1 : g_gameState.players[playerIndex].y;
       if (ny >= 0 && g_gameState.grid[nx][ny] != '#')
       {
         g_gameState.players[playerIndex].y = ny;
       }
     }
-    else if (strstr(cmd, "DOWN"))
-    {
-      int nx = g_gameState.players[playerIndex].x;
-      int ny = g_gameState.players[playerIndex].y - 1;
-      if (ny < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
-      {
-        g_gameState.players[playerIndex].y = ny;
-      }
-    }
-    else if (strstr(cmd, "LEFT"))
-    {
-      int nx = g_gameState.players[playerIndex].x - 1;
-      int ny = g_gameState.players[playerIndex].y;
-      if (nx < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
-      {
-        g_gameState.players[playerIndex].x = nx;
-      }
-    }
     else if (strstr(cmd, "RIGHT"))
     {
-      int nx = g_gameState.players[playerIndex].x + 1;
-      int ny = g_gameState.players[playerIndex].y;
-      if (nx < GRID_ROWS && g_gameState.grid[nx][ny] != '#')
+      int nx = g_gameState.players[playerIndex].x;
+      int ny = g_gameState.players[playerIndex].y < GRID_COLS - 1 ? g_gameState.players[playerIndex].y + 1 : g_gameState.players[playerIndex].y;
+      if (ny >= 0 && g_gameState.grid[nx][ny] != '#')
       {
-        g_gameState.players[playerIndex].x = nx;
+        g_gameState.players[playerIndex].y = ny;
       }
     }
   }
@@ -293,7 +295,6 @@ void *clientHandler(void *arg)
     // TODO: recv from clientSocket
     if (recv(clientSocket, buffer, BUFFER_SIZE, 0) < 0)
     {
-      perror("failed to receive from the client");
       close(clientSocket);
       continue;
     }
@@ -372,7 +373,7 @@ int main(int argc, char *argv[])
   for (p = listp; p != NULL; p = p->ai_next)
   {
     // 2. Create server socket
-    serverSock = socket(listp->ai_family, listp->ai_socktype, p->ai_protocol);
+    serverSock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
     if (serverSock < 0)
     {
       perror("socket creation failed");
@@ -384,7 +385,7 @@ int main(int argc, char *argv[])
                (const void *)&optval, sizeof(int));
 
     // 3. Bind, listen
-    if (bind(serverSock, p->ai_addr, p->ai_addrlen) <= 0)
+    if (bind(serverSock, p->ai_addr, p->ai_addrlen) < 0)
     {
       perror("bind failed");
       close(serverSock);
