@@ -31,6 +31,7 @@
 #define BUFFER_SIZE 1024
 #define LISTENQ 4    // Upto 4 people can wait in the lobby for a next game session
 #define MAXLINE 1000 // For hostname
+#define MAX_FIREBALLS 10 // Can adjust
 
 /* Grid dimensions */
 #define GRID_ROWS 5
@@ -39,6 +40,15 @@
 /*---------------------------------------------------------------------------*
  * Data Structures
  *---------------------------------------------------------------------------*/
+
+/* Fireball structure */
+typedef struct
+{
+  int x, y;        // Fireball pos
+  int dx, dy;      // Direction
+  int active;      // Unactive it it hits a wall
+  int justSpawned; // 1 if just spawned, 0 otherwise
+} Fireball;
 
 /* Player structure */
 typedef struct
