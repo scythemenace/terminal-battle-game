@@ -31,6 +31,7 @@
 #define BUFFER_SIZE 1024
 #define LISTENQ 4    // Upto 4 people can wait in the lobby for a next game session
 #define MAXLINE 1000 // For hostname
+#define MAX_FIREBALLS 10 // Can adjust
 
 /* Grid dimensions */
 #define GRID_ROWS 5
@@ -40,12 +41,22 @@
  * Data Structures
  *---------------------------------------------------------------------------*/
 
+/* Fireball structure */
+typedef struct
+{
+  int x, y;        // Fireball pos
+  int dx, dy;      // Direction
+  int active;      // Unactive it it hits a wall
+  int justSpawned; // 1 if just spawned, 0 otherwise
+} Fireball;
+
 /* Player structure */
 typedef struct
 {
   int x, y;   // current position
   int hp;     // health points
   int active; // 1 if this player slot is used, 0 otherwise
+  Fireball fireball; // Each player has one fireball
 } Player;
 
 /* Game state: grid + players + count */
@@ -97,6 +108,12 @@ void initGameState()
     g_gameState.players[i].y = -1;
     g_gameState.players[i].hp = 100;
     g_gameState.players[i].active = 0;
+    g_gameState.players[i].fireball.x = -1;
+    g_gameState.players[i].fireball.y = -1;
+    g_gameState.players[i].fireball.dx = 0;
+    g_gameState.players[i].fireball.dy = 0;
+    g_gameState.players[i].fireball.active = 0;
+    g_gameState.players[i].fireball.justSpawned = 0; // Initialize
     g_clientSockets[i] = -1;
   }
 
@@ -121,6 +138,40 @@ void refreshPlayerPositions()
       }
     }
   }
+
+    // Update fireballs for each player
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+      if (g_gameState.players[i].fireball.active)
+      {
+        if (g_gameState.players[i].fireball.justSpawned)
+        {
+          // Skip movement, but place the fireball and clear the flag
+          g_gameState.players[i].fireball.justSpawned = 0;
+          int x = g_gameState.players[i].fireball.x;
+          int y = g_gameState.players[i].fireball.y;
+          g_gameState.grid[x][y] = '*';
+          continue;
+        }
+  
+        int oldX = g_gameState.players[i].fireball.x;
+        int oldY = g_gameState.players[i].fireball.y;
+        int nx = oldX + g_gameState.players[i].fireball.dx;
+        int ny = oldY + g_gameState.players[i].fireball.dy;
+  
+        // Check boundaries or walls
+        if (nx < 0 || nx >= GRID_ROWS || ny < 0 || ny >= GRID_COLS || g_gameState.grid[nx][ny] == '#')
+        {
+          g_gameState.players[i].fireball.active = 0; // Deactivate fireball
+          continue;
+        }
+  
+        // Move fireball
+        g_gameState.players[i].fireball.x = nx;
+        g_gameState.players[i].fireball.y = ny;
+        g_gameState.grid[nx][ny] = '*'; // Place fireball in new position
+      }
+    }
 
   // Place each active player's symbol
   for (int i = 0; i < MAX_CLIENTS; i++)
@@ -256,7 +307,50 @@ void handleCommand(int playerIndex, const char *cmd)
       }
     }
   }
-  // else if (strncmp(cmd, "ATTACK", 6) == 0) { ... }
+  else if (strncmp(cmd, "ATTACK", 6) == 0)
+  {
+    // Only launch a new fireball if the player doesn't have an active one
+    if (g_gameState.players[playerIndex].fireball.active)
+    {
+      return; // Ignore command if fireball is already active
+    }
+
+    int px = g_gameState.players[playerIndex].x;
+    int py = g_gameState.players[playerIndex].y;
+    int dx = 0, dy = 0;
+
+    // Set direction
+    if (strstr(cmd, "UP"))
+    {
+      dx = -1; // Move up
+    }
+    else if (strstr(cmd, "DOWN"))
+    {
+      dx = 1; // Move down
+    }
+    else if (strstr(cmd, "LEFT"))
+    {
+      dy = -1; // Move left
+    }
+    else if (strstr(cmd, "RIGHT"))
+    {
+      dy = 1; // Move right
+    }
+
+    // Check initial position is valid
+    int tx = px + dx;
+    int ty = py + dy;
+    if (tx >= 0 && tx < GRID_ROWS && ty >= 0 && ty < GRID_COLS && g_gameState.grid[tx][ty] != '#')
+    {
+      g_gameState.players[playerIndex].fireball.x = tx;
+      g_gameState.players[playerIndex].fireball.y = ty;
+      g_gameState.players[playerIndex].fireball.dx = dx;
+      g_gameState.players[playerIndex].fireball.dy = dy;
+      g_gameState.players[playerIndex].fireball.active = 1;
+      g_gameState.players[playerIndex].fireball.justSpawned = 1; // Set flag
+      g_gameState.grid[tx][ty] = '*';                            // Place initial fireball
+    }
+  }
   // else if (strncmp(cmd, "QUIT", 4) == 0) { ... }
 
   // Refresh positions and broadcast
