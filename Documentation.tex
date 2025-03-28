@@ -1,0 +1,89 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{COMPSCI 3N03 Assignment 3}
+\author{Aditya Sahni, Karan Sandhu, Ankur Pandey, Manavi }
+\date{March 2025}
+
+\begin{document}
+
+\maketitle
+
+\section{Detailed Explanation of the Protocol}
+
+\subsection{Connection Establishment}
+
+The protocol utilizes TCP at the transport layer to guarantee reliable, ordered, and error-free communication between the server and up to four clients. TCP's connection-oriented nature ensures consistency in game state across all participants.
+
+The server initializes a TCP socket, enabling the \texttt{SO\_REUSEADDR} option to allow immediate port reuse. It binds to a user-specified port (e.g., 12345) and begins listening for connections. The server accepts up to four clients, placing each in the \texttt{g\_clientSockets} list, initializing their game state (e.g., position, health), and spawning a dedicated thread (\texttt{clientHandler}) for handling client communication. If the server is at capacity, it sends a message stating the server is full and rejects the connection.
+
+Clients also create TCP sockets and connect using the server's IP and port provided via command-line arguments. Upon a successful connection, the client prints a confirmation message and launches a \texttt{receiverThread} to listen for server updates. The server then broadcasts the current game state to all clients, ensuring the new client starts in sync with the ongoing game.
+
+\subsection{Message Formats and Communication Flow}
+
+The protocol employs UTF-8 encoded, newline-terminated plain-text messages for communication, allowing for straightforward parsing and cross-platform compatibility. Clients issue commands to the server, which responds with game state updates or other notifications.
+
+Clients transmit commands as single-line strings using \texttt{sendall()}, with supported commands as follows:
+
+\begin{itemize}
+    \item \textbf{MOVE:} Format: \texttt{MOVE <DIRECTION>} (e.g., \texttt{MOVE UP}). The direction must be one of \texttt{UP}, \texttt{DOWN}, \texttt{LEFT}, or \texttt{RIGHT}.
+    \item \textbf{ATTACK:} A single-word command that targets adjacent players.
+    \item \textbf{SAY:} Format: \texttt{SAY <MESSAGE>}. Sends a chat message to all players.
+    \item \textbf{QUIT:} Signals the client’s intent to disconnect from the server.
+\end{itemize}
+
+The server replies with the updated game state to all clients using \texttt{sendall()} on each socket. The message includes:
+
+\begin{itemize}
+    \item A header (\texttt{--- GAME STATE ---}).
+    \item A 5x5 ASCII grid showing player positions, obstacles, and empty cells.
+    \item Player-specific information, including health and coordinates.
+    \item Special messages such as ``You have died'' or ``Goodbye!'' where applicable.
+\end{itemize}
+
+Additional standalone messages are sent for chat (\texttt{SAY}) and error notifications, each properly terminated for client-side display.
+
+\subsection{Command Handling and Protocol Logic}
+
+The server maintains a global game state in the \texttt{g\_gameState} dictionary, which includes the 5x5 grid, a list of player details (position, health, and status), and the total number of connected clients. To ensure thread safety when multiple clients interact with the game state, a threading lock (\texttt{g\_stateLock}) is employed. This lock prevents race conditions during concurrent state updates.
+
+Command parsing and execution are managed by the \texttt{handleCommand} function, which behaves differently based on the player's current state:
+
+\begin{itemize}
+    \item \textbf{MOVE:} The server verifies that the player is alive and active. It calculates the intended new position and validates that it lies within the grid bounds and is not obstructed. If valid, the player’s position is updated.
+    
+    \item \textbf{ATTACK:} If the player is alive, the server checks all other players for adjacency using Manhattan distance. Any adjacent players lose 20 HP. Those who reach 0 HP are marked inactive, removed from the grid, and sent a “You have died” message.
+    
+    \item \textbf{SAY:} A chat message is constructed and sent to all active clients. This command does not affect the game state.
+    
+    \item \textbf{QUIT:} The server sends a “Goodbye!” message to the client, marks the player as inactive, clears their socket entry, reduces the client count, and updates the grid accordingly.
+\end{itemize}
+
+After handling each command (excluding \texttt{SAY}), the server refreshes the player positions by removing old markers and updating the grid based on current coordinates. It then broadcasts the updated game state to all clients. Dead players attempting restricted commands receive a “You are now spectating as a ghost...” notification and are limited to using only \texttt{SAY} and \texttt{QUIT}.
+
+\subsection{Error Handling and Robustness}
+
+To enhance reliability, the protocol incorporates comprehensive error handling mechanisms on both the server and client sides. All socket-related operations are enclosed in \texttt{try/except} blocks to capture and respond to exceptions gracefully.
+
+\textbf{On the server side:}
+
+\begin{itemize}
+    \item Setup errors such as a port conflict are caught and logged (e.g., “Server setup failed”), prompting a safe exit.
+    \item If the maximum number of clients is reached, additional connections are refused with a “Server full” message.
+    \item During broadcasts, a \texttt{BrokenPipeError} (e.g., a disconnected client) is logged, and the associated player is marked inactive while the server continues operation.
+\end{itemize}
+
+\textbf{On the client side:}
+
+\begin{itemize}
+    \item Connection failures result in an immediate exit after displaying an error message.
+    \item If no data is received (indicating a disconnect), the socket is closed, and the client exits cleanly.
+    \item Sending errors also trigger a safe shutdown of the client.
+\end{itemize}
+
+A \texttt{threading.Event} is used to ensure a graceful client shutdown after a \texttt{QUIT} command. The receiving thread is given a short timeout to process the final messages (e.g., “Goodbye!”) before the socket is closed. Players marked as dead are restricted from sending unauthorized commands, maintaining the integrity of the game state.
+
+
+
+
+\end{document}
