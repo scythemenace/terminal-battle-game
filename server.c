@@ -66,6 +66,7 @@ typedef struct
   Player players[MAX_CLIENTS];
   int clientCount; // how many players are connected
   int currentTurn; // Index of the player whose turn it is
+  int gameStarted; // 0 if no players have connected yet, 1 after first player connects
 } GameState;
 
 /* Global game state */
@@ -119,6 +120,7 @@ void initGameState()
 
   g_gameState.clientCount = 0;
   g_gameState.currentTurn = 0; // Start with Player 0 (A)
+  g_gameState.gameStarted = 0; // Initialize
 }
 
 // Function to send a message to a player via their socket
@@ -162,6 +164,17 @@ void rotateTurn()
   char turnMessage[BUFFER_SIZE];
   snprintf(turnMessage, BUFFER_SIZE, "It's your turn, Player %c\n", 'A' + g_gameState.currentTurn);
   sendMessageToPlayer(g_gameState.currentTurn, turnMessage);
+
+  // Notify all other players whose turn it is
+  char otherMessage[BUFFER_SIZE];
+  snprintf(otherMessage, BUFFER_SIZE, "It's Player %c's turn\n", 'A' + g_gameState.currentTurn);
+  for (int i = 0; i < MAX_CLIENTS; i++)
+  {
+    if (i != g_gameState.currentTurn && g_clientSockets[i] != -1)
+    {
+      sendMessageToPlayer(i, otherMessage);
+    }
+  }
 }
 
 /*---------------------------------------------------------------------------*
@@ -471,15 +484,17 @@ void *clientHandler(void *arg)
   g_gameState.players[playerIndex].x = playerIndex; // naive approach
   g_gameState.players[playerIndex].y = 0;
   g_gameState.players[playerIndex].active = 1;
-  refreshPlayerPositions();
-  broadcastState();
 
-  // Notify the current player of their turn if (playerIndex == g_gameState.currentTurn)
+  // If this is the first player, notify them of their turn
+  if (!g_gameState.gameStarted)
   {
-    const char *yourTurnMsg = "It's your turn\n";
+    g_gameState.gameStarted = 1;
+    const char *yourTurnMsg = "It's your turn, Player A\n";
     sendMessageToPlayer(playerIndex, yourTurnMsg);
   }
 
+  refreshPlayerPositions();
+  broadcastState();
   pthread_mutex_unlock(&g_stateMutex);
 
   char buffer[BUFFER_SIZE];
