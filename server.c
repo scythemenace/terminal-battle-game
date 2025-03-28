@@ -447,9 +447,10 @@ int main(int argc, char *argv[])
     int freeIndex;
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
-      if (g_clientSockets[i] != -1)
+      if (g_clientSockets[i] == -1)
       {
         freeIndex = i;
+        break;
       }
     }
 
