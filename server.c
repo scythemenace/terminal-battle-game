@@ -65,6 +65,7 @@ typedef struct
            [GRID_COLS]; // '.' for empty, '#' for obstacle, or 'A'/'B'/'C'/'D'
   Player players[MAX_CLIENTS];
   int clientCount; // how many players are connected
+  int currentTurn; // Index of the player whose turn it is
 } GameState;
 
 /* Global game state */
@@ -100,7 +101,7 @@ void initGameState()
   g_gameState.grid[2][2] = '#';
   g_gameState.grid[1][3] = '#';
 
-  // Initialize players
+  // Initialize players and fireball
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
     g_gameState.players[i].x = -1;
@@ -112,11 +113,55 @@ void initGameState()
     g_gameState.players[i].fireball.dx = 0;
     g_gameState.players[i].fireball.dy = 0;
     g_gameState.players[i].fireball.active = 0;
-    g_gameState.players[i].fireball.justSpawned = 0; // Initialize
+    g_gameState.players[i].fireball.justSpawned = 0;
     g_clientSockets[i] = -1;
   }
 
   g_gameState.clientCount = 0;
+  g_gameState.currentTurn = 0; // Start with Player 0 (A)
+}
+
+// Function to send a message to a player via their socket
+void sendMessageToPlayer(int playerIndex, const char *message)
+{
+  if (g_clientSockets[playerIndex] != -1)
+  {
+    send(g_clientSockets[playerIndex], message, strlen(message), 0);
+  }
+}
+
+// Function to rotate turns to make sure the game works on a turn by turn basis
+void rotateTurn()
+{
+  int originalTurn = g_gameState.currentTurn;
+
+  // Remainder obviously can't be higher than the divisor, so conveniently I can get the next turn
+  int nextTurn = (g_gameState.currentTurn + 1) % MAX_CLIENTS;
+
+  // Find the next active player
+  while (nextTurn != originalTurn)
+  {
+    if (g_gameState.players[nextTurn].active && g_gameState.players[nextTurn].hp > 0)
+    {
+      break;
+    }
+    nextTurn = (nextTurn + 1) % MAX_CLIENTS;
+  }
+
+  // If we looped back to the original turn and no other players are active, keep the turn
+  if (nextTurn == originalTurn && (!g_gameState.players[nextTurn].active || g_gameState.players[nextTurn].hp <= 0))
+  {
+    // No active players left, reset turn to 0 (or handle game over)
+    g_gameState.currentTurn = 0;
+    return;
+  }
+
+  g_gameState.currentTurn = nextTurn;
+
+  // Notify the player whose turn it is
+  char turnMessage[BUFFER_SIZE];
+  snprintf(turnMessage, BUFFER_SIZE, "It's your turn, Player %c\n", 'A' + g_gameState.currentTurn);
+  sendMessageToPlayer(g_gameState.currentTurn, turnMessage);
 }
 
 /*---------------------------------------------------------------------------*
@@ -304,6 +349,15 @@ void handleCommand(int playerIndex, const char *cmd)
   // Lock state if needed
   pthread_mutex_lock(&g_stateMutex);
 
+  // Check if it's the player's turn
+  if (playerIndex != g_gameState.currentTurn)
+  {
+    const char *notYourTurnMsg = "Sorry, it's not your turn\n";
+    sendMessageToPlayer(playerIndex, notYourTurnMsg);
+    pthread_mutex_unlock(&g_stateMutex);
+    return;
+  }
+
   if (strncmp(cmd, "MOVE", 4) == 0)
   {
     // Example commands: MOVE UP, MOVE DOWN, MOVE LEFT, MOVE RIGHT
@@ -395,6 +449,9 @@ void handleCommand(int playerIndex, const char *cmd)
   refreshPlayerPositions();
   broadcastState();
 
+  // Rotate the turn to the next player
+  rotateTurn();
+
   // Unlock
   pthread_mutex_unlock(&g_stateMutex);
 }
@@ -416,6 +473,13 @@ void *clientHandler(void *arg)
   g_gameState.players[playerIndex].active = 1;
   refreshPlayerPositions();
   broadcastState();
+
+  // Notify the current player of their turn if (playerIndex == g_gameState.currentTurn)
+  {
+    const char *yourTurnMsg = "It's your turn\n";
+    sendMessageToPlayer(playerIndex, yourTurnMsg);
+  }
+
   pthread_mutex_unlock(&g_stateMutex);
 
   char buffer[BUFFER_SIZE];
@@ -461,6 +525,13 @@ void *clientHandler(void *arg)
   g_gameState.players[playerIndex].active = 0;
   refreshPlayerPositions();
   broadcastState();
+
+  // Rotate turn if the disconnected player was the current turn
+  if (playerIndex == g_gameState.currentTurn)
+  {
+    rotateTurn();
+  }
+
   pthread_mutex_unlock(&g_stateMutex);
 
   return NULL;
