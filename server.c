@@ -41,7 +41,6 @@
  * Data Structures
  *---------------------------------------------------------------------------*/
 
-/* Fireball structure */
 typedef struct
 {
   int x, y;        // Fireball pos
@@ -127,7 +126,7 @@ void initGameState()
  *---------------------------------------------------------------------------*/
 void refreshPlayerPositions()
 {
-  // Clear all non-obstacle cells
+  // Clear all non-obstacle cells and non-fireball cells
   for (int r = 0; r < GRID_ROWS; r++)
   {
     for (int c = 0; c < GRID_COLS; c++)
@@ -186,7 +185,7 @@ void refreshPlayerPositions()
 }
 
 /*---------------------------------------------------------------------------*
- * TODO: Build a string that represents the current game state (ASCII grid),
+ * Build a string that represents the current game state (ASCII grid),
  *       which you can send to all clients.
  *---------------------------------------------------------------------------*/
 void buildStateString(char *outBuffer)
@@ -214,8 +213,7 @@ void buildStateString(char *outBuffer)
     Player active_player;
     if (g_gameState.players[i].active == 1)
     {
-      active_player = g_gameState.players[i];
-      printf("Is player active: INT -> %d", g_gameState.players[i].active);
+
       active_player = g_gameState.players[i];
       sprintf(outBuffer + strlen(outBuffer), "Player %d\n", i);
       sprintf(outBuffer + strlen(outBuffer), "Player position: (%d, %d)\n", active_player.x, active_player.y);
@@ -237,7 +235,7 @@ void broadcastState()
   buildStateString(buffer);
   size_t len = strlen(buffer);
 
-  // TODO: send buffer to each active client via send() or write()
+  // send buffer to each active client via send() or write()
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
     // Checking for valid sockets
@@ -257,7 +255,7 @@ void broadcastState()
 }
 
 /*---------------------------------------------------------------------------*
- * TODO: Handle a client command: MOVE, ATTACK, QUIT, etc.
+ * Handle a client command: MOVE, ATTACK, QUIT, etc.
  *  - parse the string
  *  - update the player's position or HP
  *  - call refreshPlayerPositions() and broadcastState()
@@ -307,6 +305,7 @@ void handleCommand(int playerIndex, const char *cmd)
       }
     }
   }
+
   else if (strncmp(cmd, "ATTACK", 6) == 0)
   {
     // Only launch a new fireball if the player doesn't have an active one
@@ -386,7 +385,7 @@ void *clientHandler(void *arg)
   while (1)
   {
     memset(buffer, 0, sizeof(buffer));
-    // TODO: recv from clientSocket
+    // recv from clientSocket
     if (recv(clientSocket, buffer, BUFFER_SIZE, 0) < 0)
     {
       close(clientSocket);
@@ -535,13 +534,12 @@ int main(int argc, char *argv[])
     }
 
     getnameinfo((struct sockaddr *)&clientAddr, clientlen, client_hostname, MAXLINE, client_port, MAXLINE, 0); // Get hostname from address
-    printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, g_gameState.clientCount, MAX_CLIENTS);
 
     // If we have capacity, find a free index in g_clientSockets
     int freeIndex;
     for (int i = 0; i < MAX_CLIENTS; i++)
     {
-      if (g_clientSockets[i] == -1)
+      if (g_clientSockets[i] == -1) // Change to ==
       {
         freeIndex = i;
         break;
@@ -550,6 +548,8 @@ int main(int argc, char *argv[])
 
     g_clientSockets[freeIndex] = newSock; // Adding the activeClient to the array
     g_gameState.clientCount++;
+
+    printf("New client connected! Connected to (%s, %s). Active clients: %d/%d\n", client_hostname, client_port, g_gameState.clientCount, MAX_CLIENTS);
 
     // create a thread:
     pthread_t tid;
