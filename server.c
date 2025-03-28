@@ -29,9 +29,8 @@
 
 #define MAX_CLIENTS 4
 #define BUFFER_SIZE 1024
-#define LISTENQ 4        // Upto 4 people can wait in the lobby for a next game session
-#define MAXLINE 1000     // For hostname
-#define MAX_FIREBALLS 10 // Can adjust
+#define LISTENQ 4    // Upto 4 people can wait in the lobby for a next game session
+#define MAXLINE 1000 // For hostname
 
 /* Grid dimensions */
 #define GRID_ROWS 5
@@ -43,11 +42,11 @@
 
 typedef struct
 {
-  int x, y;        // Fireball pos
+  int x, y;        // shuriken pos
   int dx, dy;      // Direction
   int active;      // Unactive it it hits a wall
   int justSpawned; // 1 if just spawned, 0 otherwise
-} Fireball;
+} Shuriken;
 
 /* Player structure */
 typedef struct
@@ -55,7 +54,7 @@ typedef struct
   int x, y;          // current position
   int hp;            // health points
   int active;        // 1 if this player slot is used, 0 otherwise
-  Fireball fireball; // Each player has one fireball
+  Shuriken shuriken; // Each player has one shuriken
 } Player;
 
 /* Game state: grid + players + count */
@@ -102,19 +101,19 @@ void initGameState()
   g_gameState.grid[2][2] = '#';
   g_gameState.grid[1][3] = '#';
 
-  // Initialize players and fireball
+  // Initialize players and shuriken
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
     g_gameState.players[i].x = -1;
     g_gameState.players[i].y = -1;
     g_gameState.players[i].hp = 100;
     g_gameState.players[i].active = 0;
-    g_gameState.players[i].fireball.x = -1;
-    g_gameState.players[i].fireball.y = -1;
-    g_gameState.players[i].fireball.dx = 0;
-    g_gameState.players[i].fireball.dy = 0;
-    g_gameState.players[i].fireball.active = 0;
-    g_gameState.players[i].fireball.justSpawned = 0;
+    g_gameState.players[i].shuriken.x = -1;
+    g_gameState.players[i].shuriken.y = -1;
+    g_gameState.players[i].shuriken.dx = 0;
+    g_gameState.players[i].shuriken.dy = 0;
+    g_gameState.players[i].shuriken.active = 0;
+    g_gameState.players[i].shuriken.justSpawned = 0;
     g_clientSockets[i] = -1;
   }
 
@@ -196,30 +195,30 @@ void refreshPlayerPositions()
     }
   }
 
-  // Update fireballs for each player
+  // Update shurikens for each player
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
-    if (g_gameState.players[i].fireball.active)
+    if (g_gameState.players[i].shuriken.active)
     {
-      if (g_gameState.players[i].fireball.justSpawned)
+      if (g_gameState.players[i].shuriken.justSpawned)
       {
-        // Skip movement, but place the fireball and clear the flag
-        g_gameState.players[i].fireball.justSpawned = 0;
-        int x = g_gameState.players[i].fireball.x;
-        int y = g_gameState.players[i].fireball.y;
+        // Skip movement, but place the shuriken and clear the flag
+        g_gameState.players[i].shuriken.justSpawned = 0;
+        int x = g_gameState.players[i].shuriken.x;
+        int y = g_gameState.players[i].shuriken.y;
         g_gameState.grid[x][y] = '*';
         continue;
       }
 
-      int oldX = g_gameState.players[i].fireball.x;
-      int oldY = g_gameState.players[i].fireball.y;
-      int nx = oldX + g_gameState.players[i].fireball.dx;
-      int ny = oldY + g_gameState.players[i].fireball.dy;
+      int oldX = g_gameState.players[i].shuriken.x;
+      int oldY = g_gameState.players[i].shuriken.y;
+      int nx = oldX + g_gameState.players[i].shuriken.dx;
+      int ny = oldY + g_gameState.players[i].shuriken.dy;
 
       // Check boundaries or walls
       if (nx < 0 || nx >= GRID_ROWS || ny < 0 || ny >= GRID_COLS || g_gameState.grid[nx][ny] == '#')
       {
-        g_gameState.players[i].fireball.active = 0; // Deactivate fireball
+        g_gameState.players[i].shuriken.active = 0; // Deactivate shuriken
         continue;
       }
 
@@ -240,11 +239,11 @@ void refreshPlayerPositions()
       if (hitPlayerIndex != -1) // A player was hit
       {
         g_gameState.players[hitPlayerIndex].hp -= 50; // Apply 50 damage
-        printf("Player %c hit by fireball! HP reduced to %d\n", 'A' + hitPlayerIndex, g_gameState.players[hitPlayerIndex].hp);
+        printf("Player %c hit by shuriken! HP reduced to %d\n", 'A' + hitPlayerIndex, g_gameState.players[hitPlayerIndex].hp);
         fflush(stdout);
 
-        // Deactivate fireball after hitting a player
-        g_gameState.players[i].fireball.active = 0;
+        // Deactivate shuriken after hitting a player
+        g_gameState.players[i].shuriken.active = 0;
 
         // Check if player's HP is 0 or less
         if (g_gameState.players[hitPlayerIndex].hp <= 0)
@@ -259,13 +258,13 @@ void refreshPlayerPositions()
             g_gameState.clientCount--;
           }
         }
-        continue; // Skip placing the fireball since it hit a player
+        continue; // Skip placing the shuriken since it hit a player
       }
 
-      // Move fireball if no player was hit
-      g_gameState.players[i].fireball.x = nx;
-      g_gameState.players[i].fireball.y = ny;
-      g_gameState.grid[nx][ny] = '*'; // Place fireball in new position
+      // Move shuriken if no player was hit
+      g_gameState.players[i].shuriken.x = nx;
+      g_gameState.players[i].shuriken.y = ny;
+      g_gameState.grid[nx][ny] = '*'; // Place shuriken in new position
     }
   }
 
@@ -302,7 +301,7 @@ void buildStateString(char *outBuffer)
     strcat(outBuffer, "\n");
   }
   // ...
-  strcat(outBuffer, "ACTIVE PLAYER INFO (IF EXISTS)\n");
+  strcat(outBuffer, "\nACTIVE PLAYER INFO (IF EXISTS)\n");
   // Optionally append player info
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
@@ -414,10 +413,10 @@ void handleCommand(int playerIndex, const char *cmd)
 
   else if (strncmp(cmd, "ATTACK", 6) == 0)
   {
-    // Only launch a new fireball if the player doesn't have an active one
-    if (g_gameState.players[playerIndex].fireball.active)
+    // Only launch a new shuriken if the player doesn't have an active one
+    if (g_gameState.players[playerIndex].shuriken.active)
     {
-      return; // Ignore command if fireball is already active
+      return; // Ignore command if shuriken is already active
     }
 
     int px = g_gameState.players[playerIndex].x;
@@ -447,13 +446,13 @@ void handleCommand(int playerIndex, const char *cmd)
     int ty = py + dy;
     if (tx >= 0 && tx < GRID_ROWS && ty >= 0 && ty < GRID_COLS && g_gameState.grid[tx][ty] != '#')
     {
-      g_gameState.players[playerIndex].fireball.x = tx;
-      g_gameState.players[playerIndex].fireball.y = ty;
-      g_gameState.players[playerIndex].fireball.dx = dx;
-      g_gameState.players[playerIndex].fireball.dy = dy;
-      g_gameState.players[playerIndex].fireball.active = 1;
-      g_gameState.players[playerIndex].fireball.justSpawned = 1; // Set flag
-      g_gameState.grid[tx][ty] = '*';                            // Place initial fireball
+      g_gameState.players[playerIndex].shuriken.x = tx;
+      g_gameState.players[playerIndex].shuriken.y = ty;
+      g_gameState.players[playerIndex].shuriken.dx = dx;
+      g_gameState.players[playerIndex].shuriken.dy = dy;
+      g_gameState.players[playerIndex].shuriken.active = 1;
+      g_gameState.players[playerIndex].shuriken.justSpawned = 1; // Set flag
+      g_gameState.grid[tx][ty] = '*';                            // Place initial shuriken
     }
   }
   // else if (strncmp(cmd, "QUIT", 4) == 0) { ... }
