@@ -122,6 +122,49 @@ void initGameState()
   g_gameState.gameStarted = 0; // Initialize
 }
 
+// Transfered logic for shuriken collision handling to helper function
+int checkShurikenCollision(int shurikenOwnerIndex, int shurikenX, int shurikenY)
+{
+  int hitPlayerIndex = -1;
+  for (int j = 0; j < MAX_CLIENTS; j++)
+  {
+    if (g_gameState.players[j].active && g_gameState.players[j].hp > 0)
+    {
+      if (g_gameState.players[j].x == shurikenX && g_gameState.players[j].y == shurikenY)
+      {
+        hitPlayerIndex = j;
+        break;
+      }
+    }
+  }
+
+  if (hitPlayerIndex != -1) // A player was hit
+  {
+    g_gameState.players[hitPlayerIndex].hp -= 50;
+    printf("Player %c hit by shuriken! HP reduced to %d\n", 'A' + hitPlayerIndex, g_gameState.players[hitPlayerIndex].hp);
+    fflush(stdout);
+
+    // Deactivate shuriken after hitting a player
+    g_gameState.players[shurikenOwnerIndex].shuriken.active = 0;
+
+    // Check if player's HP is 0 or less
+    if (g_gameState.players[hitPlayerIndex].hp <= 0)
+    {
+      printf("Player %c has been defeated!\n", 'A' + hitPlayerIndex);
+      fflush(stdout);
+      g_gameState.players[hitPlayerIndex].active = 0;
+      if (g_clientSockets[hitPlayerIndex] != -1)
+      {
+        close(g_clientSockets[hitPlayerIndex]);
+        g_clientSockets[hitPlayerIndex] = -1;
+        g_gameState.clientCount--;
+      }
+    }
+    return 1; // Collision occurred
+  }
+  return 0; // No collision
+}
+
 // Function to send a message to a player via their socket
 void sendMessageToPlayer(int playerIndex, const char *message)
 {
@@ -195,76 +238,14 @@ void refreshPlayerPositions()
     }
   }
 
-  // Update shurikens for each player
+  // Place each active shuriken
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
     if (g_gameState.players[i].shuriken.active)
     {
-      if (g_gameState.players[i].shuriken.justSpawned)
-      {
-        // Skip movement, but place the shuriken and clear the flag
-        g_gameState.players[i].shuriken.justSpawned = 0;
-        int x = g_gameState.players[i].shuriken.x;
-        int y = g_gameState.players[i].shuriken.y;
-        g_gameState.grid[x][y] = '*';
-        continue;
-      }
-
-      int oldX = g_gameState.players[i].shuriken.x;
-      int oldY = g_gameState.players[i].shuriken.y;
-      int nx = oldX + g_gameState.players[i].shuriken.dx;
-      int ny = oldY + g_gameState.players[i].shuriken.dy;
-
-      // Check boundaries or walls
-      if (nx < 0 || nx >= GRID_ROWS || ny < 0 || ny >= GRID_COLS || g_gameState.grid[nx][ny] == '#')
-      {
-        g_gameState.players[i].shuriken.active = 0; // Deactivate shuriken
-        continue;
-      }
-
-      // Check for player collision by comparing coordinates
-      int hitPlayerIndex = -1;
-      for (int j = 0; j < MAX_CLIENTS; j++)
-      {
-        if (g_gameState.players[j].active && g_gameState.players[j].hp > 0)
-        {
-          if (g_gameState.players[j].x == nx && g_gameState.players[j].y == ny)
-          {
-            hitPlayerIndex = j;
-            break;
-          }
-        }
-      }
-
-      if (hitPlayerIndex != -1) // A player was hit
-      {
-        g_gameState.players[hitPlayerIndex].hp -= 50; // Apply 50 damage
-        printf("Player %c hit by shuriken! HP reduced to %d\n", 'A' + hitPlayerIndex, g_gameState.players[hitPlayerIndex].hp);
-        fflush(stdout);
-
-        // Deactivate shuriken after hitting a player
-        g_gameState.players[i].shuriken.active = 0;
-
-        // Check if player's HP is 0 or less
-        if (g_gameState.players[hitPlayerIndex].hp <= 0)
-        {
-          printf("Player %c has been defeated!\n", 'A' + hitPlayerIndex);
-          fflush(stdout);
-          g_gameState.players[hitPlayerIndex].active = 0; // Mark player as inactive
-          if (g_clientSockets[hitPlayerIndex] != -1)
-          {
-            close(g_clientSockets[hitPlayerIndex]);
-            g_clientSockets[hitPlayerIndex] = -1;
-            g_gameState.clientCount--;
-          }
-        }
-        continue; // Skip placing the shuriken since it hit a player
-      }
-
-      // Move shuriken if no player was hit
-      g_gameState.players[i].shuriken.x = nx;
-      g_gameState.players[i].shuriken.y = ny;
-      g_gameState.grid[nx][ny] = '*'; // Place shuriken in new position
+      int x = g_gameState.players[i].shuriken.x;
+      int y = g_gameState.players[i].shuriken.y;
+      g_gameState.grid[x][y] = '*';
     }
   }
 
@@ -289,7 +270,7 @@ void buildStateString(char *outBuffer)
   // e.g., prefix with "STATE\n", then rows of the grid, then player info
   outBuffer[0] = '\0'; // start empty
 
-  strcat(outBuffer, "STATE\n");
+  strcat(outBuffer, "STATE:\n\n");
 
   // Copy the grid
   for (int r = 0; r < GRID_ROWS; r++)
@@ -358,7 +339,6 @@ void broadcastState()
  *---------------------------------------------------------------------------*/
 void handleCommand(int playerIndex, const char *cmd)
 {
-  // Lock state if needed
   pthread_mutex_lock(&g_stateMutex);
 
   // Check if it's the player's turn
@@ -370,9 +350,48 @@ void handleCommand(int playerIndex, const char *cmd)
     return;
   }
 
+  // Move all active shurikens and check for collisions before the player's action
+  for (int i = 0; i < MAX_CLIENTS; i++)
+  {
+    if (g_gameState.players[i].shuriken.active)
+    {
+      if (g_gameState.players[i].shuriken.justSpawned)
+      {
+        // Skip movement on the turn it was spawned (already checked in ATTACK)
+        g_gameState.players[i].shuriken.justSpawned = 0;
+        continue;
+      }
+
+      int oldX = g_gameState.players[i].shuriken.x;
+      int oldY = g_gameState.players[i].shuriken.y;
+      int nx = oldX + g_gameState.players[i].shuriken.dx;
+      int ny = oldY + g_gameState.players[i].shuriken.dy;
+
+      // Check boundaries or walls
+      if (nx < 0 || nx >= GRID_ROWS || ny < 0 || ny >= GRID_COLS || g_gameState.grid[nx][ny] == '#')
+      {
+        g_gameState.players[i].shuriken.active = 0; // Deactivate shuriken
+        continue;
+      }
+
+      // Move shuriken
+      g_gameState.players[i].shuriken.x = nx;
+      g_gameState.players[i].shuriken.y = ny;
+
+      // Check for collision at the new position
+      if (checkShurikenCollision(i, nx, ny))
+      {
+        continue; // Shuriken hit a player and was deactivated
+      }
+
+      // Update grid after moving shuriken (will be cleared in refreshPlayerPositions)
+      g_gameState.grid[nx][ny] = '*';
+    }
+  }
+
+  // Process the player's command
   if (strncmp(cmd, "MOVE", 4) == 0)
   {
-    // Example commands: MOVE UP, MOVE DOWN, MOVE LEFT, MOVE RIGHT
     if (strstr(cmd, "UP"))
     {
       int nx = g_gameState.players[playerIndex].x > 0 ? g_gameState.players[playerIndex].x - 1 : g_gameState.players[playerIndex].x;
@@ -410,12 +429,12 @@ void handleCommand(int playerIndex, const char *cmd)
       }
     }
   }
-
   else if (strncmp(cmd, "ATTACK", 6) == 0)
   {
     // Only launch a new shuriken if the player doesn't have an active one
     if (g_gameState.players[playerIndex].shuriken.active)
     {
+      pthread_mutex_unlock(&g_stateMutex);
       return; // Ignore command if shuriken is already active
     }
 
@@ -453,9 +472,11 @@ void handleCommand(int playerIndex, const char *cmd)
       g_gameState.players[playerIndex].shuriken.active = 1;
       g_gameState.players[playerIndex].shuriken.justSpawned = 1; // Set flag
       g_gameState.grid[tx][ty] = '*';                            // Place initial shuriken
+
+      // Immediately check for collision at the spawn position
+      checkShurikenCollision(playerIndex, tx, ty);
     }
   }
-  // else if (strncmp(cmd, "QUIT", 4) == 0) { ... }
 
   // Refresh positions and broadcast
   refreshPlayerPositions();
@@ -464,7 +485,6 @@ void handleCommand(int playerIndex, const char *cmd)
   // Rotate the turn to the next player
   rotateTurn();
 
-  // Unlock
   pthread_mutex_unlock(&g_stateMutex);
 }
 
