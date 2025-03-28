@@ -56,6 +56,7 @@ typedef struct
   int x, y;   // current position
   int hp;     // health points
   int active; // 1 if this player slot is used, 0 otherwise
+  Fireball fireball; // Each player has one fireball
 } Player;
 
 /* Game state: grid + players + count */
@@ -107,6 +108,12 @@ void initGameState()
     g_gameState.players[i].y = -1;
     g_gameState.players[i].hp = 100;
     g_gameState.players[i].active = 0;
+    g_gameState.players[i].fireball.x = -1;
+    g_gameState.players[i].fireball.y = -1;
+    g_gameState.players[i].fireball.dx = 0;
+    g_gameState.players[i].fireball.dy = 0;
+    g_gameState.players[i].fireball.active = 0;
+    g_gameState.players[i].fireball.justSpawned = 0; // Initialize
     g_clientSockets[i] = -1;
   }
 
@@ -131,6 +138,40 @@ void refreshPlayerPositions()
       }
     }
   }
+
+    // Update fireballs for each player
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+      if (g_gameState.players[i].fireball.active)
+      {
+        if (g_gameState.players[i].fireball.justSpawned)
+        {
+          // Skip movement, but place the fireball and clear the flag
+          g_gameState.players[i].fireball.justSpawned = 0;
+          int x = g_gameState.players[i].fireball.x;
+          int y = g_gameState.players[i].fireball.y;
+          g_gameState.grid[x][y] = '*';
+          continue;
+        }
+  
+        int oldX = g_gameState.players[i].fireball.x;
+        int oldY = g_gameState.players[i].fireball.y;
+        int nx = oldX + g_gameState.players[i].fireball.dx;
+        int ny = oldY + g_gameState.players[i].fireball.dy;
+  
+        // Check boundaries or walls
+        if (nx < 0 || nx >= GRID_ROWS || ny < 0 || ny >= GRID_COLS || g_gameState.grid[nx][ny] == '#')
+        {
+          g_gameState.players[i].fireball.active = 0; // Deactivate fireball
+          continue;
+        }
+  
+        // Move fireball
+        g_gameState.players[i].fireball.x = nx;
+        g_gameState.players[i].fireball.y = ny;
+        g_gameState.grid[nx][ny] = '*'; // Place fireball in new position
+      }
+    }
 
   // Place each active player's symbol
   for (int i = 0; i < MAX_CLIENTS; i++)
