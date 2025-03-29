@@ -85,9 +85,23 @@ void initSockets()
 /* Mutex to protect shared game state (recommended for thread safety) */
 pthread_mutex_t g_stateMutex = PTHREAD_MUTEX_INITIALIZER;
 
+// Shifted reset logic from init to a function
+void resetPlayerState(int playerIndex)
+{
+  g_gameState.players[playerIndex].x = -1;
+  g_gameState.players[playerIndex].y = -1;
+  g_gameState.players[playerIndex].hp = 100;
+  g_gameState.players[playerIndex].active = 0;
+  g_gameState.players[playerIndex].shuriken.x = -1;
+  g_gameState.players[playerIndex].shuriken.y = -1;
+  g_gameState.players[playerIndex].shuriken.dx = 0;
+  g_gameState.players[playerIndex].shuriken.dy = 0;
+  g_gameState.players[playerIndex].shuriken.active = 0;
+  g_gameState.players[playerIndex].shuriken.justSpawned = 0;
+}
+
 void initGameState()
 {
-  // Fill the grid with '.'
   for (int r = 0; r < GRID_ROWS; r++)
   {
     for (int c = 0; c < GRID_COLS; c++)
@@ -96,30 +110,18 @@ void initGameState()
     }
   }
 
-  // Example: place some obstacles
-  // (Feel free to add more or randomize them)
   g_gameState.grid[2][2] = '#';
   g_gameState.grid[1][3] = '#';
 
-  // Initialize players and shuriken
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
-    g_gameState.players[i].x = -1;
-    g_gameState.players[i].y = -1;
-    g_gameState.players[i].hp = 100;
-    g_gameState.players[i].active = 0;
-    g_gameState.players[i].shuriken.x = -1;
-    g_gameState.players[i].shuriken.y = -1;
-    g_gameState.players[i].shuriken.dx = 0;
-    g_gameState.players[i].shuriken.dy = 0;
-    g_gameState.players[i].shuriken.active = 0;
-    g_gameState.players[i].shuriken.justSpawned = 0;
+    resetPlayerState(i);
     g_clientSockets[i] = -1;
   }
 
   g_gameState.clientCount = 0;
-  g_gameState.currentTurn = 0; // Start with Player 0 (A)
-  g_gameState.gameStarted = 0; // Initialize
+  g_gameState.currentTurn = 0;
+  g_gameState.gameStarted = 0;
 }
 
 // Function to send a message to a player via their socket
@@ -362,7 +364,6 @@ void handleCommand(int playerIndex, const char *cmd)
     {
       if (g_gameState.players[i].shuriken.justSpawned)
       {
-        // Skip movement on the turn it was spawned (already checked in ATTACK)
         g_gameState.players[i].shuriken.justSpawned = 0;
         continue;
       }
@@ -372,24 +373,20 @@ void handleCommand(int playerIndex, const char *cmd)
       int nx = oldX + g_gameState.players[i].shuriken.dx;
       int ny = oldY + g_gameState.players[i].shuriken.dy;
 
-      // Check boundaries or walls
       if (nx < 0 || nx >= GRID_ROWS || ny < 0 || ny >= GRID_COLS || g_gameState.grid[nx][ny] == '#')
       {
-        g_gameState.players[i].shuriken.active = 0; // Deactivate shuriken
+        g_gameState.players[i].shuriken.active = 0;
         continue;
       }
 
-      // Move shuriken
       g_gameState.players[i].shuriken.x = nx;
       g_gameState.players[i].shuriken.y = ny;
 
-      // Check for collision at the new position
       if (checkShurikenCollision(i, nx, ny))
       {
-        continue; // Shuriken hit a player and was deactivated
+        continue;
       }
 
-      // Update grid after moving shuriken (will be cleared in refreshPlayerPositions)
       g_gameState.grid[nx][ny] = '*';
     }
   }
@@ -436,36 +433,33 @@ void handleCommand(int playerIndex, const char *cmd)
   }
   else if (strncmp(cmd, "ATTACK", 6) == 0)
   {
-    // Only launch a new shuriken if the player doesn't have an active one
     if (g_gameState.players[playerIndex].shuriken.active)
     {
       pthread_mutex_unlock(&g_stateMutex);
-      return; // Ignore command if shuriken is already active
+      return;
     }
 
     int px = g_gameState.players[playerIndex].x;
     int py = g_gameState.players[playerIndex].y;
     int dx = 0, dy = 0;
 
-    // Set direction
     if (strstr(cmd, "UP"))
     {
-      dx = -1; // Move up
+      dx = -1;
     }
     else if (strstr(cmd, "DOWN"))
     {
-      dx = 1; // Move down
+      dx = 1;
     }
     else if (strstr(cmd, "LEFT"))
     {
-      dy = -1; // Move left
+      dy = -1;
     }
     else if (strstr(cmd, "RIGHT"))
     {
-      dy = 1; // Move right
+      dy = 1;
     }
 
-    // Check initial position is valid
     int tx = px + dx;
     int ty = py + dy;
     if (tx >= 0 && tx < GRID_ROWS && ty >= 0 && ty < GRID_COLS && g_gameState.grid[tx][ty] != '#')
@@ -475,12 +469,52 @@ void handleCommand(int playerIndex, const char *cmd)
       g_gameState.players[playerIndex].shuriken.dx = dx;
       g_gameState.players[playerIndex].shuriken.dy = dy;
       g_gameState.players[playerIndex].shuriken.active = 1;
-      g_gameState.players[playerIndex].shuriken.justSpawned = 1; // Set flag
-      g_gameState.grid[tx][ty] = '*';                            // Place initial shuriken
+      g_gameState.players[playerIndex].shuriken.justSpawned = 1;
+      g_gameState.grid[tx][ty] = '*';
 
-      // Immediately check for collision at the spawn position
       checkShurikenCollision(playerIndex, tx, ty);
     }
+  }
+  else if (strncmp(cmd, "QUIT", 4) == 0)
+  {
+    // Notify the player they are quitting
+    const char *quitMessage = "\nYou have quit the game.\n";
+    sendMessageToPlayer(playerIndex, quitMessage);
+
+    // Notify other players that this player has quit
+    char otherMessage[BUFFER_SIZE];
+    snprintf(otherMessage, BUFFER_SIZE, "\nPlayer %c has quit the game.\n", 'A' + playerIndex);
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+      if (i != playerIndex && g_clientSockets[i] != -1)
+      {
+        sendMessageToPlayer(i, otherMessage);
+      }
+    }
+
+    // Reset the player's state
+    resetPlayerState(playerIndex);
+
+    // Close their socket
+    if (g_clientSockets[playerIndex] != -1)
+    {
+      close(g_clientSockets[playerIndex]);
+      g_clientSockets[playerIndex] = -1;
+      g_gameState.clientCount--;
+    }
+
+    // Refresh positions and broadcast the updated state
+    refreshPlayerPositions();
+    broadcastState();
+
+    // Rotate turn if the quitting player was the current turn
+    if (playerIndex == g_gameState.currentTurn)
+    {
+      rotateTurn();
+    }
+
+    pthread_mutex_unlock(&g_stateMutex);
+    return;
   }
 
   // Refresh positions and broadcast
@@ -503,13 +537,11 @@ void *clientHandler(void *arg)
 
   int clientSocket = g_clientSockets[playerIndex];
 
-  // Example: set player's initial position
   pthread_mutex_lock(&g_stateMutex);
-  g_gameState.players[playerIndex].x = playerIndex; // naive approach
+  g_gameState.players[playerIndex].x = playerIndex;
   g_gameState.players[playerIndex].y = 0;
   g_gameState.players[playerIndex].active = 1;
 
-  // If this is the first player, notify them of their turn
   if (!g_gameState.gameStarted)
   {
     g_gameState.gameStarted = 1;
@@ -523,15 +555,45 @@ void *clientHandler(void *arg)
 
   char buffer[BUFFER_SIZE];
 
-  // Main recv loop
   while (1)
   {
     memset(buffer, 0, sizeof(buffer));
-    // recv from clientSocket
-    if (recv(clientSocket, buffer, BUFFER_SIZE, 0) < 0)
+    int bytesReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+    if (bytesReceived <= 0) // Client disconnected
     {
+      pthread_mutex_lock(&g_stateMutex);
+
+      // Notify other players that this player has disconnected
+      char disconnectMessage[BUFFER_SIZE];
+      snprintf(disconnectMessage, BUFFER_SIZE, "\nPlayer %c has disconnected.\n", 'A' + playerIndex);
+      for (int i = 0; i < MAX_CLIENTS; i++)
+      {
+        if (i != playerIndex && g_clientSockets[i] != -1)
+        {
+          sendMessageToPlayer(i, disconnectMessage);
+        }
+      }
+
+      // Reset the player's state
+      resetPlayerState(playerIndex);
+
+      // Close the socket
       close(clientSocket);
-      continue;
+      g_clientSockets[playerIndex] = -1;
+      g_gameState.clientCount--;
+
+      // Refresh and broadcast the updated state
+      refreshPlayerPositions();
+      broadcastState();
+
+      // Rotate turn if the disconnected player was the current turn
+      if (playerIndex == g_gameState.currentTurn)
+      {
+        rotateTurn();
+      }
+
+      pthread_mutex_unlock(&g_stateMutex);
+      break;
     }
 
     // Strip trailing newline (if any)
@@ -544,7 +606,7 @@ void *clientHandler(void *arg)
     // Handle the command
     handleCommand(playerIndex, buffer);
 
-    // If the player used QUIT in handleCommand, we can also break here:
+    // Check if the player quit via command
     pthread_mutex_lock(&g_stateMutex);
     if (g_gameState.players[playerIndex].active == 0)
     {
@@ -553,25 +615,6 @@ void *clientHandler(void *arg)
     }
     pthread_mutex_unlock(&g_stateMutex);
   }
-
-  // Cleanup on disconnect
-  printf("Player %c disconnected.\n", 'A' + playerIndex);
-  close(clientSocket);
-
-  // Mark inactive
-  pthread_mutex_lock(&g_stateMutex);
-  g_clientSockets[playerIndex] = -1;
-  g_gameState.players[playerIndex].active = 0;
-  refreshPlayerPositions();
-  broadcastState();
-
-  // Rotate turn if the disconnected player was the current turn
-  if (playerIndex == g_gameState.currentTurn)
-  {
-    rotateTurn();
-  }
-
-  pthread_mutex_unlock(&g_stateMutex);
 
   return NULL;
 }
