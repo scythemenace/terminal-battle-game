@@ -122,6 +122,15 @@ void initGameState()
   g_gameState.gameStarted = 0; // Initialize
 }
 
+// Function to send a message to a player via their socket
+void sendMessageToPlayer(int playerIndex, const char *message)
+{
+  if (g_clientSockets[playerIndex] != -1)
+  {
+    send(g_clientSockets[playerIndex], message, strlen(message), 0);
+  }
+}
+
 // Transfered logic for shuriken collision handling to helper function
 int checkShurikenCollision(int shurikenOwnerIndex, int shurikenX, int shurikenY)
 {
@@ -152,6 +161,11 @@ int checkShurikenCollision(int shurikenOwnerIndex, int shurikenX, int shurikenY)
     {
       printf("Player %c has been defeated!\n", 'A' + hitPlayerIndex);
       fflush(stdout);
+
+      // Send "You have died!" message to the player
+      const char *deathMessage = "You have died!\n";
+      sendMessageToPlayer(hitPlayerIndex, deathMessage);
+
       g_gameState.players[hitPlayerIndex].active = 0;
       if (g_clientSockets[hitPlayerIndex] != -1)
       {
@@ -163,15 +177,6 @@ int checkShurikenCollision(int shurikenOwnerIndex, int shurikenX, int shurikenY)
     return 1; // Collision occurred
   }
   return 0; // No collision
-}
-
-// Function to send a message to a player via their socket
-void sendMessageToPlayer(int playerIndex, const char *message)
-{
-  if (g_clientSockets[playerIndex] != -1)
-  {
-    send(g_clientSockets[playerIndex], message, strlen(message), 0);
-  }
 }
 
 // Function to rotate turns to make sure the game works on a turn by turn basis
@@ -204,12 +209,12 @@ void rotateTurn()
 
   // Notify the player whose turn it is
   char turnMessage[BUFFER_SIZE];
-  snprintf(turnMessage, BUFFER_SIZE, "It's your turn, Player %c\n", 'A' + g_gameState.currentTurn);
+  snprintf(turnMessage, BUFFER_SIZE, "\nIt's your turn, Player %c\n", 'A' + g_gameState.currentTurn);
   sendMessageToPlayer(g_gameState.currentTurn, turnMessage);
 
   // Notify all other players whose turn it is
   char otherMessage[BUFFER_SIZE];
-  snprintf(otherMessage, BUFFER_SIZE, "It's Player %c's turn\n", 'A' + g_gameState.currentTurn);
+  snprintf(otherMessage, BUFFER_SIZE, "\nIt's Player %c's turn\n", 'A' + g_gameState.currentTurn);
   for (int i = 0; i < MAX_CLIENTS; i++)
   {
     if (i != g_gameState.currentTurn && g_clientSockets[i] != -1)
