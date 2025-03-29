@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
         char command[BUFFER_SIZE];
         memset(command, 0, sizeof(command));
 
-        printf("Enter command (MOVE/ATTACK/QUIT): ");
+        printf("\nEnter command (MOVE/ATTACK/QUIT): ");
         fflush(stdout);
 
         if (fgets(command, sizeof(command), stdin) == NULL)
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
             command[len - 1] = '\0';
         }
 
-        // TODO:
+        // sending
         send(g_serverSocket, command, strlen(command), 0);
 
         // If QUIT => break

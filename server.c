@@ -277,7 +277,7 @@ void buildStateString(char *outBuffer)
   // e.g., prefix with "STATE\n", then rows of the grid, then player info
   outBuffer[0] = '\0'; // start empty
 
-  strcat(outBuffer, "STATE:\n\n");
+  strcat(outBuffer, "\nSTATE:\n\n");
 
   // Copy the grid
   for (int r = 0; r < GRID_ROWS; r++)
@@ -478,7 +478,7 @@ void handleCommand(int playerIndex, const char *cmd)
   else if (strncmp(cmd, "QUIT", 4) == 0)
   {
     // Notify the player they are quitting
-    const char *quitMessage = "\nYou have quit the game.\n";
+    const char *quitMessage = "\nhYou have quit the game.\n";
     sendMessageToPlayer(playerIndex, quitMessage);
 
     // Notify other players that this player has quit
@@ -545,7 +545,7 @@ void *clientHandler(void *arg)
   if (!g_gameState.gameStarted)
   {
     g_gameState.gameStarted = 1;
-    const char *yourTurnMsg = "It's your turn, Player A\n";
+    const char *yourTurnMsg = "\nIt's your turn, Player A\n";
     sendMessageToPlayer(playerIndex, yourTurnMsg);
   }
 
