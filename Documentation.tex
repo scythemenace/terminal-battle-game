@@ -2,7 +2,7 @@
 \usepackage{graphicx} % Required for inserting images
 
 \title{COMPSCI 3N03 Assignment 3}
-\author{Aditya Sahni, Karan Sandhu, Ankur Pandey, Manavi }
+\author{Aditya Sahni, Karan Sandhu, Ankur Pandey, Manavi Manavi }
 \date{March 2025}
 
 \begin{document}
@@ -83,7 +83,13 @@ To enhance reliability, the protocol incorporates comprehensive error handling m
 
 A \texttt{threading.Event} is used to ensure a graceful client shutdown after a \texttt{QUIT} command. The receiving thread is given a short timeout to process the final messages (e.g., “Goodbye!”) before the socket is closed. Players marked as dead are restricted from sending unauthorized commands, maintaining the integrity of the game state.
 
+\subsection{Extensibility and Deployment Considerations}
 
+This protocol is built with adaptability in mind, allowing it to be deployed in multiple environments. During local testing, it uses the loopback address (127.0.0.1) as shown in the quickstart instructions. For LAN-based gameplay, the server binds to all network interfaces (''), enabling clients within the same local network to connect using the server’s LAN IP (e.g., 192.168.1.x), which can be obtained using tools like \texttt{ifconfig} or \texttt{ipconfig}.
+
+For internet-based deployment, further setup is necessary. Specifically, the server's port (e.g., 12345) must be forwarded on the router, and clients must use the server’s public IP or domain name to connect. Because the protocol currently transmits plain-text messages, it is vulnerable to eavesdropping and tampering. To address this, enhancements such as TLS encryption (using Python’s \texttt{ssl} module) and user authentication (e.g., a login feature) could be introduced.
+
+Although the current implementation, which uses a separate thread for each client, handles up to four players efficiently, it can be extended using asynchronous I/O (e.g., \texttt{asyncio}) to support larger player counts. Additionally, new commands like \texttt{HEAL} or \texttt{TRADE} could be incorporated into the \texttt{handleCommand} function. Parameters like \texttt{GRID\_ROWS}, \texttt{GRID\_COLS}, and \texttt{MAX\_CLIENTS} can also be modified to increase the game’s scale, making the protocol highly adaptable for future enhancements.
 
 
 \end{document}
