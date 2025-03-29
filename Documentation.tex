@@ -91,5 +91,10 @@ For internet-based deployment, further setup is necessary. Specifically, the ser
 
 Although the current implementation, which uses a separate thread for each client, handles up to four players efficiently, it can be extended using asynchronous I/O (e.g., \texttt{asyncio}) to support larger player counts. Additionally, new commands like \texttt{HEAL} or \texttt{TRADE} could be incorporated into the \texttt{handleCommand} function. Parameters like \texttt{GRID\_ROWS}, \texttt{GRID\_COLS}, and \texttt{MAX\_CLIENTS} can also be modified to increase the game’s scale, making the protocol highly adaptable for future enhancements.
 
+\subsection{Summary}
+
+The protocol supports a real-time, multiplayer ASCII-based ``Battle Game'' using TCP, emphasizing clarity, reliability, and robustness. Clients send commands such as \texttt{MOVE}, \texttt{ATTACK}, \texttt{SAY}, and \texttt{QUIT}, while the server maintains a synchronized global game state using a dedicated thread for each client and locking mechanisms to prevent data races.
+
+Its comprehensive error-handling approach ensures resilience to network disruptions and disconnections. The architecture allows for both local and LAN-based play, and with added security and scalability features, it could be adapted for online deployment. Overall, the protocol's straightforward and modular design offers a solid basis for expanding multiplayer networked game development.
 
 \end{document}
