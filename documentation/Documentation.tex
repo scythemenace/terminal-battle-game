@@ -1,0 +1,202 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{tikz}
+
+\title{COMPSCI 3N03 Assignment 3}
+\author{Aditya Sahni, Karan Sandhu, Ankur Pandey, Manavi Manavi }
+\date{March 2025}
+
+\begin{document}
+
+\maketitle
+
+\section*{Detailed Explanation of the Protocol}
+
+\subsection*{Overview}
+This report details the communication protocol for a networked ASCII "Battle Game" implemented in C, consisting of a server (server.c) and a client (client.c). The game supports up to 4 players in a turn-based system, where players can move, attack with shurikens, or quit the game. The server manages the game state, processes client commands, and broadcasts updates to all connected clients. The client sends commands to the server and displays the game state received from the server.
+\newline
+\newline
+The protocol is built on TCP for reliable communication, using a simple text-based message format. Below, we describe the protocol, the recognized commands, the message flow, and provide a sequence diagram to illustrate the client-server interaction.
+
+\subsection*{Connection Establishment}
+
+\begin{enumerate}
+    \item Connection Setup
+        \begin {itemize}
+            \item \textbf{Transport Layer}: The protocol uses TCP for reliable, ordered message delivery.
+            \item \textbf{Server Initialization}:
+            \begin {itemize}
+                \item The server starts by binding to a specified port (e.g., \texttt{./server 12345}) and listens for incoming connections.
+                \item It can accept up to 4 clients (\texttt{MAX\_CLIENTS = 4}).
+                \item If the server is full, it sends the message \textbf{``Server full. Please try again later."} to the new client and closes the connection.
+            \end {itemize}
+            \item \textbf{Client Connection}:
+            \begin {itemize}
+                \item The client connects to the server using the server's IP address and port (e.g., \texttt{./client 127.0.0.1 12345}).
+                \item Upon successful connection, the server assigns the client a player ID (0 to 3, corresponding to players A to D) and initializes their position on the grid (e.g., Player A at (0, 0), Player B at (1, 0), etc.).
+                \item The server increments its \texttt{clientCount} and logs: "\textbf{New client connected! Connected to ($<$hostname$>$, $<$port$>$). Active clients: $<$count$>$/4}".
+            \end {itemize}
+    \end {itemize}
+    \item Game State
+    \begin {itemize}
+        \item \textbf{Grid}: A 5x5 ASCII grid (\texttt{GRID\_ROWS = 5, GRID\_COLS = 5})
+        \begin {itemize}
+            \item \texttt{.} represents an empty cell.
+            \item \texttt{\#} represents an obstacle (in our case, at positions (2, 2) and (1, 3)).
+            \item \texttt{A, B, C, D} represent players.
+            \item \texttt{*} represents a shuriken.
+        \end {itemize}
+        \item \textbf{Players}:
+        \begin {itemize}
+            \item Each player has a position (x, y), health points (HP, initially 100), and one shuriken.
+            \item Players are identified as A (index 0), B (index 1), C (index 2), and D (index 3).
+        \end {itemize}
+        \item \textbf{Turn-Based System}:
+        \begin {itemize}
+            \item The game operates on a turn-based system, starting with Player A (index 0).
+            \item The server maintains a \texttt{currentTurn} variable to track whose turn it is.
+            \item After each turn, the server rotates the turn to the next active player with HP $>$ 0 using \texttt{rotateTurn()}.
+        \end {itemize}
+    \end {itemize}
+    \item \textbf{Recognized Commands}:
+    
+        The client sends commands as plain text strings. The server recognizes the following commands:
+        \begin{itemize}
+            \item \texttt{MOVE $<$DIRECTION$>$}:
+                \begin {itemize}
+                    \item Format: \texttt{"MOVE UP", "MOVE DOWN", "MOVE LEFT", "MOVE RIGHT"}.
+                    \item Action: Moves the player one cell in the specified direction if the move is within bounds and not blocked by an obstacle (\texttt{\#}).
+                    \item Example: If Player A is at (0, 0) and sends "MOVE DOWN", they move to (1, 0) if the cell is not an obstacle.
+                \end {itemize}
+            \item \texttt{ATTACK $<$DIRECTION$>$}:
+                \begin {itemize}
+                    \item Format: \texttt{"ATTACK UP", "ATTACK DOWN", "ATTACK LEFT", "ATTACK RIGHT"}.
+                    \item Action: Launches a shuriken in the specified direction from the player's position.
+                    \begin {itemize}
+                        \item The shuriken spawns one cell away in the direction of the attack (e.g., if Player A at (0, 0) sends \texttt{"ATTACK DOWN"}, the shuriken spawns at (1, 0)).
+                        \item If the spawn position is valid (within bounds and not an obstacle), the shuriken becomes active and moves one cell per turn in the same direction.
+                        \item If the shuriken hits a player (i.e., occupies the same cell), it deals 50 damage and deactivates.
+                        \item If the shuriken hits a wall (\texttt{\#}) or goes out of bounds, it deactivates.
+                    \end {itemize}
+                    \item Example: If Player A at (0, 0) sends "ATTACK DOWN" and Player B is at (1, 0), Player B takes 50 damage (HP: 100 → 50).
+                \end {itemize}
+            \item \texttt{QUIT}:
+                \begin{itemize}
+                    \item Format: \texttt{"QUIT"}.
+                    \item Action: The player quits the game, their state is reset, and their socket is closed.
+                    \item Example: If Player A sends \texttt{"QUIT"}, they are removed from the game, and other players are notified.
+                \end{itemize}
+            \end{itemize}
+    \item Server Responses and Messages:
+
+        The server sends the following messages to the clients:
+        \begin {itemize}
+            \item \textbf{Game State Update}:
+                \begin{itemize}
+                    \item Format:
+\begin{verbatim}
+STATE:
+
+<grid row 1>
+<grid row 2>
+<grid row 3>
+<grid row 4>
+<grid row 5>
+
+ACTIVE PLAYER INFO (IF EXISTS)
+Player <ID>
+Player position: (<x>, <y>)
+Player health points <HP>
+...
+\end{verbatim}
+                \item Sent: After every command (via \texttt{broadcastState()}), when a player connects, disconnects, or quits.
+                \item Example:
+\begin{verbatim}
+STATE:
+
+A....
+B...#
+..#..
+.....
+.....
+
+ACTIVE PLAYER INFO (IF EXISTS)
+Player 0
+Player position: (0, 0)
+Player health points 100
+Player 1
+Player position: (1, 0)
+Player health points 100
+\end{verbatim}
+            \end{itemize}
+            \item \textbf{Turn Notifications}:
+                \begin{itemize}
+                    \item To the current player: ``\textbf{It's your turn, Player X}" (e.g., ``\textbf{It's your turn, Player A}").
+                    \item To other players: ``\textbf{It's Player X's turn}" (e.g. ``\textbf{It's Player A's turn}").
+                    \item Sent: After every turn rotation (via \texttt{rotateTurn()}).
+                \end{itemize}
+            \item \textbf{Not Your Turn}:
+                \begin{itemize}
+                    \item Message: ``\textbf{Sorry, it's not your turn}".
+                    \item Sent: If a player sends a command when it's not their turn.
+                \end{itemize}
+            \item \textbf{Shuriken Hit}:
+                \begin{itemize}
+                    \item The server logs: ``\textbf{Player X hit by shuriken! HP reduced to Y}", but this is not sent to clients.
+                    \item The updated HP is reflected in the game state broadcast.
+                \end{itemize}
+            \item \textbf{Player Defeated}:
+                \begin{itemize}
+                    \item To the defeated player: ``\textbf{You have died!}".
+                    \item Sent: When a player's HP drops to 0 or below (via \texttt{checkShurikenCollision()}).
+                    \item The server logs: ``\textbf{Player X has been defeated!}''.
+                \end{itemize}
+            \item \textbf{Player Quit}:
+                \begin{itemize}
+                    \item To the quitting player: ``\textbf{You have quit the game.}''.
+                    \item To other players: ``\textbf{Player X has quit the game.}".
+                    \item Sent: When a player sends ``\texttt{QUIT}".
+                \end{itemize}
+            \item \textbf{Player Disconnected}:
+                \begin{itemize}
+                    \item To other players: ``\textbf{Player X has disconnected.}".
+                    \item Sent: When a player disconnects unexpectedly (e.g., closes their client).
+                \end{itemize}
+        \end{itemize}
+    \item Message Flow
+    
+    The message flow follows a turn-based pattern:
+    \begin{enumerate}
+        \item Client Connects:
+            \begin{itemize}
+                \item Client connects to the server.
+                \item Server assigns a player ID, initializes the player's state, and broadcasts the updated game state to all clients.
+                \item If the client is the first player (Player A), the server sends: ``\textbf{It's your turn, Player A}".
+            \end{itemize}
+        \item Turn-Based Command Processing:
+            \begin{itemize}
+                \item The client whose turn it is sends a command (e.g., \texttt{"MOVE DOWN", "ATTACK RIGHT", "QUIT"}).
+                \item If it's not the client's turn, the server responds with "\textbf{Sorry, it's not your turn}".
+                \item Otherwise, the server processes the command:
+                    \begin{itemize}
+                        \item Updates the game state (e.g., moves the player, launches a shuriken, or removes the player if they quit).
+                        \item Broadcasts the updated game state to all clients.
+                        \item Rotates the turn and sends turn notifications.
+                    \end{itemize}
+            \end{itemize}
+        \item Shuriken Movement:
+            \begin{itemize}
+                \item At the start of each turn, the server moves all active shurikens and checks for collisions.
+                \item If a shuriken hits a player, their HP is reduced, and the updated state is broadcast.
+            \end{itemize}
+        \item Disconnection:
+            \begin{itemize}
+                \item If a client sends ``\texttt{QUIT}" or disconnects unexpectedly, the server resets their state, notifies other players, and broadcasts the updated state.
+            \end{itemize}
+    \end{enumerate}
+\end{enumerate}
+
+\section*{Sequence Diagram}
+
+
+\end{document}
