@@ -1,6 +1,7 @@
 \documentclass{article}
 \usepackage{graphicx} % Required for inserting images
 \usepackage{tikz}
+\graphicspath{ {./} }
 
 \title{COMPSCI 3N03 Assignment 3}
 \author{Aditya Sahni, Karan Sandhu, Ankur Pandey, Manavi Manavi }
@@ -13,7 +14,7 @@
 \section*{Detailed Explanation of the Protocol}
 
 \subsection*{Overview}
-This report details the communication protocol for a networked ASCII "Battle Game" implemented in C, consisting of a server (server.c) and a client (client.c). The game supports up to 4 players in a turn-based system, where players can move, attack with shurikens, or quit the game. The server manages the game state, processes client commands, and broadcasts updates to all connected clients. The client sends commands to the server and displays the game state received from the server.
+This report details the communication protocol for a networked ASCII ``Battle Game" implemented in C, consisting of a server (server.c) and a client (client.c). The game supports up to 4 players in a turn-based system, where players can move, attack with shurikens, or quit the game. The server manages the game state, processes client commands, and broadcasts updates to all connected clients. The client sends commands to the server and displays the game state received from the server.
 \newline
 \newline
 The protocol is built on TCP for reliable communication, using a simple text-based message format. Below, we describe the protocol, the recognized commands, the message flow, and provide a sequence diagram to illustrate the client-server interaction.
@@ -26,13 +27,13 @@ The protocol is built on TCP for reliable communication, using a simple text-bas
             \item \textbf{Transport Layer}: The protocol uses TCP for reliable, ordered message delivery.
             \item \textbf{Server Initialization}:
             \begin {itemize}
-                \item The server starts by binding to a specified port (e.g., \texttt{./server 12345}) and listens for incoming connections.
+                \item The server starts by binding to a specified port (e.g., \texttt{./server 3000}) and listens for incoming connections.
                 \item It can accept up to 4 clients (\texttt{MAX\_CLIENTS = 4}).
                 \item If the server is full, it sends the message \textbf{``Server full. Please try again later."} to the new client and closes the connection.
             \end {itemize}
             \item \textbf{Client Connection}:
             \begin {itemize}
-                \item The client connects to the server using the server's IP address and port (e.g., \texttt{./client 127.0.0.1 12345}).
+                \item The client connects to the server using the server's IP address and port (e.g., \texttt{./client 127.0.0.1 3000}).
                 \item Upon successful connection, the server assigns the client a player ID (0 to 3, corresponding to players A to D) and initializes their position on the grid (e.g., Player A at (0, 0), Player B at (1, 0), etc.).
                 \item The server increments its \texttt{clientCount} and logs: "\textbf{New client connected! Connected to ($<$hostname$>$, $<$port$>$). Active clients: $<$count$>$/4}".
             \end {itemize}
@@ -195,8 +196,34 @@ Player health points 100
             \end{itemize}
     \end{enumerate}
 \end{enumerate}
-
 \section*{Sequence Diagram}
-
-
+Below is a sequence diagram illustrating the communication between two clients (Client A and Client B) and the server during a game session. The diagram includes connection, command processing, shuriken hits, and disconnection.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=8cm, height=20cm]{sequence_diagram.png}
+    \label{fig:sequence}
+\end{figure}
+\clearpage
+\section*{Final Protocol Summary}
+The networked ASCII Battle Game protocol defines a set of commands and server messages to facilitate turn-based gameplay. Players can issue commands such as \texttt{MOVE $<$DIRECTION$>$} to move their character in the specified direction (\texttt{UP, DOWN, LEFT, RIGHT}), \texttt{ATTACK $<$DIRECTION$>$} to launch a shuriken in the chosen direction (\texttt{UP, DOWN, LEFT, RIGHT}), and \texttt{QUIT} to exit the game, which removes the player from the session. 
+\newline
+\newline
+The server communicates with clients through various messages, including the game state, formatted as ``STATE: $\backslash$n $<$grid$>$ $\backslash$n ACTIVE PLAYER INFO (IF EXIST) $\backslash$n $<$player info$>$", which provides the current grid and player details. 
+\newline
+\newline
+Turn notifications are sent to inform the current player with ``\textbf{It's your turn, Player}" and other players with ``\textbf{It's Player X's turn}", while an error message, ``\textbf{Sorry, it's not your turn}", is sent if a player attempts an action out of turn. 
+\newline
+\newline
+When a player's HP drops to zero, the server sends ``\textbf{You have die}" to the affected player. For the \texttt{QUIT} command, the quitting player receives ``\textbf{You have quit the game}", and other players are notified with ``\textbf{Player X has quit the game}". If a player disconnects unexpectedly, the server broadcasts ``\textbf{Player X has disconnected}" to the remaining players.
+\newline
+\newline
+The message flow of the protocol follows a structured sequence to ensure smooth gameplay. When a client connects, the server assigns a player ID and broadcasts the updated game state to all clients. The game then enters a turn-based loop where the server notifies the current player of their turn, prompting them to send a command, which the server processes before broadcasting the updated state and rotating the turn to the next player. At the start of each turn, the server handles shuriken movement and collision checks, updating the game state accordingly. If a client disconnects, either by sending \texttt{QUIT} or unexpectedly, the server resets the player's state, broadcasts the updated state to all remaining clients, and continues the game. This flow ensures a fair and consistent multiplayer experience.
+\subsection*{Additional Features}
+Here are some additional features we've introduced. We won't go into detail here, as we've already explained them previously.
+\begin{itemize}
+    \item \textbf{Shuriken}: Added a shuriken mechanic, allowing players to attack in a specified direction, dealing 50 damage on hit.
+    \item \textbf{Turn-by-Turn Gameplay}: Implemented a turn-based system, ensuring fair play by rotating turns among active players.
+    \item \textbf{Proper QUIT Mechanics}: Enhanced the QUIT command to notify all players, reset the quitter's state, and close their socket cleanly.
+    \item \textbf{Border Adherence}: Fixed movement to prevent players from going out of the 5x5 grid, ensuring valid moves within boundaries.
+\end{itemize}
 \end{document}
