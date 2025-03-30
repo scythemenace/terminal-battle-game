@@ -1,5 +1,3 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/GT67vYVA)
-
 # Networked ASCII Battle Game
 
 ## Overview
@@ -56,17 +54,21 @@ gcc client.c -o client -pthread
 1. **Start the Server**:
 
    - Run the server on a specified port (e.g., 12345):
+
      ```bash
      ./server 12345
      ```
+
    - The server will listen for incoming connections and can handle up to 4 clients.
 
 2. **Connect Clients**:
 
    - In separate terminal windows, run the client, connecting to the server’s IP and port (e.g., `127.0.0.1` for localhost):
+
      ```bash
      ./client 127.0.0.1 12345
      ```
+
    - Repeat this for up to 4 clients (each client will be assigned a player ID: A, B, C, or D).
 
 3. **Play the Game**:
